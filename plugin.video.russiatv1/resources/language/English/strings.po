@@ -1,0 +1,99 @@
+# Kodi Media Center language file
+# Addon Name: Russia 1
+# Addon id: plugin.video.russiatv1
+# Addon Provider: vl.maksime
+
+msgid ""
+msgstr ""
+
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: en\n"
+
+msgctxt "#30001"
+msgid "Search"
+msgstr ""
+
+msgctxt "#30010"
+msgid "Episode"
+msgstr ""
+
+msgctxt "#30011"
+msgid "New Search..."
+msgstr ""
+
+msgctxt "#30012"
+msgid "Next page..."
+msgstr ""
+
+msgctxt "#30013"
+msgid "Previous page..."
+msgstr ""
+
+msgctxt "#30014"
+msgid "Nothing found!"
+msgstr ""
+
+msgctxt "#30015"
+msgid "Page"
+msgstr ""
+
+msgctxt "#30016"
+msgid "Empty"
+msgstr ""
+
+msgctxt "#30017"
+msgid "Sort"
+msgstr ""
+
+msgctxt "#30018"
+msgid "By release date"
+msgstr ""
+
+msgctxt "#30019"
+msgid "By alphabet"
+msgstr ""
+
+msgctxt "#30041"
+msgid "Connection error"
+msgstr ""
+
+msgctxt "#30042"
+msgid "Video not found"
+msgstr ""
+
+msgctxt "#30201"
+msgid "File names for saving with 'Add To Lib'"
+msgstr ""
+
+msgctxt "#30202"
+msgid "Search history length"
+msgstr ""
+
+msgctxt "#30203"
+msgid "Results per page"
+msgstr ""
+
+msgctxt "#30210"
+msgid "Video Quality"
+msgstr ""
+
+msgctxt "#30211"
+msgid "Auto"
+msgstr ""
+
+msgctxt "#30212"
+msgid "240p"
+msgstr ""
+
+msgctxt "#30213"
+msgid "360p"
+msgstr ""
+
+msgctxt "#30214"
+msgid "540p"
+msgstr ""
+
+msgctxt "#30215"
+msgid "720p (HD)"
+msgstr ""

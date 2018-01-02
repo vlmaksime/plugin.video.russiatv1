@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addon id="plugin.video.russiatv1" version="0.1.1" name="Россия 1" provider-name="vl.maksime">
+    <requires>
+        <import addon="xbmc.python" version="2.1.0"/>
+        <import addon="script.module.requests" version="2.12.4"/>
+        <import addon="script.module.simpleplugin" version="2.3.2"/>
+    </requires>
+    <extension point="xbmc.python.pluginsource" library="default.py">
+        <provides>video</provides>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+        <summary lang="en"></summary>
+        <summary lang="ru"></summary>
+        <description lang="en"></description>
+        <description lang="ru"></description>
+        <disclaimer lang="en"></disclaimer>
+        <disclaimer lang="ru"></disclaimer>
+        <language>ru</language>
+        <platform>all</platform>
+        <license>GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007</license>
+        <forum>http://xbmc.ru/forum/showthread.php?t=</forum>
+        <website>https://russia.tv/</website>
+        <email>vl.maksime@gmail.com</email>
+        <source>https://github.com/vlmaksime/plugin.video.russiatv1</source>
+        <news>v0.1.1 (2018-01-02)[CR]- Публичный релиз</news>
+        <assets>
+            <icon>icon.png</icon>
+        </assets>
+    </extension>
+</addon>
