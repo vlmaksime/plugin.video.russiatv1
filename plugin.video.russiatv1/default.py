@@ -95,7 +95,7 @@ def _get_category_title(cat_id):
     try:
         for category in _get_categories():
             if category['cat_id'] == cat_id:
-                return category['label']
+                return category['label'].encode('utf-8')
     except RussiaTvApiError as err:
         _show_api_error(err)
 
