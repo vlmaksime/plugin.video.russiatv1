@@ -95,11 +95,21 @@ def _get_category_title(cat_id):
     try:
         for category in _get_categories():
             if category['cat_id'] == cat_id:
-                return category['label'].encode('utf-8')
+                return category['label']
     except RussiaTvApiError as err:
         _show_api_error(err)
 
     return None
+
+def _join(str, parts):
+    new_parts = []
+    for val in parts:
+        if isinstance(val, unicode):
+            new_parts.append(val.encode('utf-8'))
+        else:
+            new_parts.append(val)
+
+    return str.join(new_parts)
 
 #list_videos
 @plugin.action()
@@ -157,7 +167,7 @@ def list_videos( params ):
         category_title.append('%s %d' % (_('Page'), (cur_offset + 1)))
     elif  cur_cat == 'episodes':
         category_title.append(video_list.get('title'))
-    category = ' / '.join(category_title)
+    category = _join(' / ', category_title)
 
     if succeeded:
         listing = _make_video_list(video_list, params, dir_params)
@@ -384,7 +394,7 @@ def _make_item( video_item, search, use_atl_names=False ):
             if use_atl_names:
                 del item_info['info']['video']['title']
 
-        item_info['label'] = ''.join(label_list)
+        item_info['label'] = _join('', label_list)
         item_info['url'] = url
         item_info['is_playable'] = is_playable
         item_info['is_folder'] = is_folder
@@ -406,10 +416,10 @@ def _backward_capatibility( item_info ):
 
     if major_version < '18':
         for fields in ['genre', 'writer', 'director', 'country', 'credits']:
-            item_info['info']['video'][fields] = ' / '.join(item_info['info']['video'].get(fields,[]))
+            item_info['info']['video'][fields] = _join(' / ', item_info['info']['video'].get(fields,[]))
 
     if major_version < '15':
-        item_info['info']['video']['duration'] = (item_info['info']['video']['duration'] / 60)
+        item_info['info']['video']['duration'] = (item_info['info']['video'].get('duration', 0) / 60)
 
 def _make_category_label( color, title, category ):
     label_parts = []
@@ -418,14 +428,14 @@ def _make_category_label( color, title, category ):
     label_parts.append(':[/B] ')
     label_parts.append(category)
     label_parts.append('[/COLOR]')
-    return ''.join(label_parts)
+    return _join('', label_parts)
 
 def _make_colour_label( color, title ):
     label_parts = []
     label_parts.append('[COLOR=%s][B]' % color)
     label_parts.append(title)
     label_parts.append('[/B][/COLOR]')
-    return ''.join(label_parts)
+    return _join('', label_parts)
 
 def _get_image( image ):
     return image if xbmc.skinHasImage(image) else plugin.icon
@@ -450,7 +460,7 @@ def get_filters():
 def _get_filter_name( list, value ):
     for item in list:
         if item['value'] == value:
-            return item['name'].encode('utf-8')
+            return item['name']
     return _('All')
 
 @plugin.action()
