@@ -36,7 +36,7 @@ msgstr "Ничего не найдено!"
 
 msgctxt "#30015"
 msgid "Page"
-msgstr "Страница"
+msgstr "Стр."
 
 msgctxt "#30016"
 msgid "Empty"
@@ -61,6 +61,10 @@ msgstr "Ошибка подключения"
 msgctxt "#30042"
 msgid "Video not found"
 msgstr "Видео не найдено"
+
+msgctxt "#30043"
+msgid "Trailer not found"
+msgstr "Трейлер не найден"
 
 msgctxt "#30201"
 msgid "File names for saving with 'Add To Lib'"

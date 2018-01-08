@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<addon id="plugin.video.russiatv1" version="0.1.4" name="Россия 1" provider-name="vl.maksime">
+<addon id="plugin.video.russiatv1" version="0.1.5" name="Россия 1" provider-name="vl.maksime">
     <requires>
         <import addon="xbmc.python" version="2.1.0"/>
         <import addon="script.module.requests" version="2.12.4"/>
@@ -9,12 +9,12 @@
         <provides>video</provides>
     </extension>
     <extension point="xbmc.addon.metadata">
-        <summary lang="en"></summary>
-        <summary lang="ru"></summary>
-        <description lang="en"></description>
-        <description lang="ru"></description>
-        <disclaimer lang="en"></disclaimer>
-        <disclaimer lang="ru"></disclaimer>
+        <summary lang="en">"Россия 1" is an unofficial add-on of the All-Russian State TV and Radio Company for KODI.</summary>
+        <summary lang="ru">"Россия 1" - неофициальное дополнение Всероссийской государственной телерадиокомпании для KODI.</summary>
+        <description lang="en">- With the addition, you will not miss any favorite TV series, film or program! [CR] - If you want to keep abreast of all the events occurring both in Russia and in the world, then the latest issues of the "News" program are what you need! Look and learn new things!</description>
+        <description lang="ru">- С дополнением вы не пропустите ни одного любимого сериала, фильма или передачи! Для вас приготовлен бесплатный доступ не только к постоянно обновляющемуся контенту, но и крупнейшему видеоархиву телеканала "Россия 1".[CR]- Если вы хотите быть в курсе всех событий, происходящих как в России, так и в мире, тогда свежие выпуски программы "Вести" то, что вам нужно! Смотри и узнавай новое!</description>
+        <disclaimer lang="en">Come in add-on to "Russia 1", we always have something to see!</disclaimer>
+        <disclaimer lang="ru">Заходите в дополнение "Россия 1", у нас всегда есть, что посмотреть!</disclaimer>
         <language>ru</language>
         <platform>all</platform>
         <license>GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007</license>
@@ -22,9 +22,13 @@
         <website>https://russia.tv/</website>
         <email>vl.maksime@gmail.com</email>
         <source>https://github.com/vlmaksime/plugin.video.russiatv1</source>
-        <news>v0.1.2 (2018-01-03)[CR]- Исправлена совместимость с Android устройствами[CR][CR]v0.1.1 (2018-01-02)[CR]- Публичный релиз</news>
+        <news>v0.1.5 (2018-01-09)[CR]- Оптимизация[CR]- Реализовано получение актерского состава из описания[CR]- В описании материала добавлена возможность просмотреть трейлер</news>
         <assets>
             <icon>icon.png</icon>
+            <fanart>fanart.jpg</fanart>
+            <screenshot>resources\media\screenshot-01.jpg</screenshot>
+            <screenshot>resources\media\screenshot-02.jpg</screenshot>
+            <screenshot>resources\media\screenshot-03.jpg</screenshot>
         </assets>
     </extension>
 </addon>

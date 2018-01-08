@@ -75,11 +75,13 @@ def _list_root():
         list_item = {'label': item['label'],
                      'url': url,
                      'icon': item_icon,
-                     'fanart': plugin.fanart}
+                     'fanart': plugin.fanart,
+                     'content_lookup': False,
+                     }
         yield list_item
 
 
-@plugin.cached(180)
+@plugin.mem_cached(180)
 def _get_categories():
     result = []
     categories = _api.get_categories()
@@ -121,8 +123,7 @@ def list_videos( params ):
 
     if usearch:
         params['_limit'] = 9999
-    elif plugin.limit != 20 \
-        and params.get('_limit') is None:
+    elif params.get('_limit') is None:
         params['_limit'] = plugin.limit
 
     if not usearch \
@@ -156,6 +157,8 @@ def list_videos( params ):
 
     category_title = []
     if cur_cat in ['category', 'search']:
+        category_title.append('%s %d / %d' % (_('Page'), (cur_offset + 1), video_list['pages']))
+
         if cur_cat == 'category':
             title = _get_category_title(params.get('_cat_id', ''))
         elif cur_cat == 'search':
@@ -164,7 +167,6 @@ def list_videos( params ):
         if title is not None:
             category_title.append(title)
 
-        category_title.append('%s %d' % (_('Page'), (cur_offset + 1)))
     elif  cur_cat == 'episodes':
         category_title.append(video_list.get('title'))
     category = _join(' / ', category_title)
@@ -176,7 +178,7 @@ def list_videos( params ):
 
     sort_methods = _get_sort_methods(cur_cat, params.get('_sort', ''))
 
-    return plugin.create_listing(listing, content=content, succeeded=succeeded, update_listing=update_listing, category=category, sort_methods=sort_methods, cache_to_disk=True)
+    return plugin.create_listing(listing, content=content, succeeded=succeeded, update_listing=update_listing, category=category, sort_methods=sort_methods)
 
 def _get_category_content( cat ):
     if cat == 'episodes':
@@ -198,15 +200,11 @@ def _get_sort_methods( cat, sort='' ):
         else:
             sort_methods.append(xbmcplugin.SORT_METHOD_EPISODE)
     elif cat == 'search':
-#        sort_methods.append({'sortMethod': xbmcplugin.SORT_METHOD_UNSORTED, 'label2Mask': '%Y / %R'})
-#        sort_methods.append(xbmcplugin.SORT_METHOD_VIDEO_YEAR)
-#        sort_methods.append({'sortMethod': xbmcplugin.SORT_METHOD_TITLE_IGNORE_THE, 'label2Mask': '%Y / %R'})
-        sort_methods.append(xbmcplugin.SORT_METHOD_UNSORTED)
+        sort_methods.append({'sortMethod': xbmcplugin.SORT_METHOD_UNSORTED, 'label2Mask': '%Y'})
         sort_methods.append(xbmcplugin.SORT_METHOD_VIDEO_YEAR)
-        sort_methods.append(xbmcplugin.SORT_METHOD_TITLE_IGNORE_THE)
+        sort_methods.append({'sortMethod': xbmcplugin.SORT_METHOD_TITLE_IGNORE_THE, 'label2Mask': '%Y'})
     elif cat == 'category':
-#        sort_methods.append({'sortMethod': xbmcplugin.SORT_METHOD_UNSORTED, 'label2Mask': '%Y / %R'})
-        sort_methods.append(xbmcplugin.SORT_METHOD_UNSORTED)
+        sort_methods.append({'sortMethod': xbmcplugin.SORT_METHOD_UNSORTED, 'label2Mask': '%Y'})
     else:
         sort_methods.append(xbmcplugin.SORT_METHOD_UNSORTED)
 
@@ -216,16 +214,6 @@ def _get_video_list( cat, params ):
     video_list = _api.get_video_list(cat, params)
 
     return video_list
-def _video_have_keyword(video_item, keyword):
-    title = video_item['video_info']['title'].decode('utf-8').lower()
-    originaltitle = video_item['video_info']['originaltitle'].decode('utf-8').lower()
-    kw = keyword.decode('utf-8').lower()
-
-    result = (title.find(kw) >= 0 or originaltitle.find(kw) >= 0)
-    plugin.log_debug(title + '/' + originaltitle + '/' + kw + '/' + str(result))
-
-
-    return result
 
 def _make_video_list( video_list, params={}, dir_params = {} ):
     cur_cat = params.get('cat', '')
@@ -252,10 +240,6 @@ def _make_video_list( video_list, params={}, dir_params = {} ):
 
     if video_list['count']:
         for video_item in video_list['list']:
-            if usearch \
-              and not _video_have_keyword(video_item, keyword):
-                continue
-
             yield _make_item(video_item, search, use_atl_names)
 
     elif not usearch:
@@ -294,7 +278,9 @@ def _make_filter_item( filter, params, dir_params, filters ):
                  'is_playable': False,
                  'url': url,
                  'icon': _get_filter_icon(filter),
-                 'fanart': plugin.fanart}
+                 'fanart': plugin.fanart,
+                 'content_lookup': False,
+                 }
 
     return list_item
 
@@ -399,6 +385,14 @@ def _make_item( video_item, search, use_atl_names=False ):
         item_info['is_playable'] = is_playable
         item_info['is_folder'] = is_folder
 
+        if video_info.get('have_trailer') \
+          and video_info['have_trailer']:
+            url_params = {'_type': video_type,
+                          '_brand_id': video_info['brand_id'],
+                          }
+            trailer_url = plugin.get_url(action='trailer', **url_params)
+            item_info['info']['video']['trailer'] = trailer_url
+
         _backward_capatibility(item_info)
 
         return item_info
@@ -408,9 +402,9 @@ def _backward_capatibility( item_info ):
 
     cast = []
     castandrole = []
-    for cast_ in item_info.get('cast',[]):
-        cast.append(cast_['name'])
-        castandrole.append((cast_['name'], cast_.get('role')))
+    for _cast in item_info.get('cast',[]):
+        cast.append(_cast['name'])
+        castandrole.append((_cast['name']))
     item_info['info']['video']['cast'] = cast
     item_info['info']['video']['castandrole'] = castandrole
 
@@ -440,10 +434,6 @@ def _make_colour_label( color, title ):
 def _get_image( image ):
     return image if xbmc.skinHasImage(image) else plugin.icon
 
-@plugin.cached(180)
-def get_video_details( params ):
-    return _api.get_content_details(params)
-
 def get_filters():
     sort = []
     sort.append({'name': _('By release date'),
@@ -461,7 +451,6 @@ def _get_filter_name( list, value ):
     for item in list:
         if item['value'] == value:
             return item['name']
-    return _('All')
 
 @plugin.action()
 def search( params ):
@@ -500,6 +489,7 @@ def search( params ):
         params['action'] = 'list_videos'
         params['cat'] = 'search'
         params['_keyword'] = keyword
+        params['_full_list'] = not usearch
         return list_videos(params)
 
 @plugin.action()
@@ -572,6 +562,20 @@ def play( params ):
         succeeded = False
 
     return plugin.resolve_url(play_item=item, succeeded=succeeded)
+
+@plugin.action()
+def trailer( params ):
+
+    u_params = _get_request_params( params )
+    try:
+        path = _api.get_trailer_url( u_params )
+        succeeded = True
+    except RussiaTvApiError as err:
+        _show_api_error(err)
+        path = ""
+        succeeded = False
+
+    return plugin.resolve_url(path=path, succeeded=succeeded)
 
 if __name__ == '__main__':
     _api = _init_api()

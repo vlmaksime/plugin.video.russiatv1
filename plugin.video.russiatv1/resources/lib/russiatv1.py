@@ -35,6 +35,15 @@ class RussiaTv:
                          'search':          {'url': vgtrk_api_url + '/brands/channels/1'},
                          }
 
+        self.peoples = {'cast': [u'В ролях: ', u'В главной роли: ', u'В главных ролях:', u'Текст читает: ',
+                                 u'Ведущие: ', u'Ведущий: ', u'Ведущая: '],
+                        'director': [u'Режиссер: ', u'Режиссеры: ', u'Режиссер-постановщик: '],
+                        'writer': [u'Авторы сценария: ', u'Автор сценария: ', u'Сценарий: '],
+                        #'credits': [u'Оператор-постановщик: ', u'Художник-постановщик: ', u'Композитор: ',
+                        #            u'Продюсеры: ', u'Оригинальный сюжет: ', u'Оператор: ', u'Художник по костюмам: ',
+                        #            u'Художник по гриму: ', u'Режиссер монтажа: ', u'Автор идеи: ', u'Главный автор: ', u'Автор: '],
+                        }
+
     def _http_request( self, action, params = {}, url_params=None ):
         action_settings = self._actions.get(action)
 
@@ -42,7 +51,7 @@ class RussiaTv:
 
         if url_params is not None:
             for key, val in url_params.iteritems():
-                url = url.replace(key, val)
+                url = url.replace(key, str(val))
 
         headers = {'User-Agent': 'mobile-russitv1-android',
                    'Accept': '*/*',
@@ -87,7 +96,7 @@ class RussiaTv:
 
             yield(cat)
 
-    def _get_brand_info( self, params ):
+    def _get_brand_data( self, params ):
 
         url_params = {'#brand_id': str(params['brand_id'])}
 
@@ -107,16 +116,17 @@ class RussiaTv:
 
     def browse_episodes( self, params ):
 
-        brand_info = self._get_brand_info(params)
+        brand_info = self._get_brand_data(params)
 
-        limit = min(brand_info['countVideos'], 9999)
-        offset = params.get('offset', 0)
-        sort = params['sort']
+        #limit = min(brand_info['countVideos'], 9999)
+        limit = 9999
+        offset = int(params.get('offset', '0'))
+        sort = params.get('sort', 'date')
 
         url_params = {'#brand_id': str(params['brand_id'])}
         u_params = {'limit': limit,
                     'offset': offset,
-                    'type': 1,
+                    #'type': 1,
                     'sort': sort
                     }
 
@@ -137,128 +147,18 @@ class RussiaTv:
     def _make_episode_list( self, json, brand_info, sort, start_num ):
 
         episodes = json['data']
+        
         if sort == 'date':
             episodes.sort(key=sort_by_date)
 
         index = start_num
         for item in episodes:
+            if item['series'] == 0 \
+              and item['videoType'] != 1:
+                continue
+            
             index += 1
-            yield self._get_episode_info(item, brand_info, index)
-
-    def _get_episode_info(self, item, brand_item, date_episode=0):
-        mediatype = 'episode'
-
-        #Defaults
-        poster = self._get_image(item['pictures'], u'bq')
-        thumb = self._get_image(item['pictures'], u'hdr')
-        fanart = thumb
-
-        plot = item['anons']
-
-        aired = ''
-        label = ''
-        title = ''
-        originaltitle = ''
-        tvshowtitle = ''
-        ratings = []
-        properties = {}
-
-        #Titles
-        tvshowtitle = brand_item['title']
-        if isinstance(tvshowtitle, int):
-            tvshowtitle = str(tvshowtitle)
-        if tvshowtitle.endswith(u'. Х/ф'):
-            tvshowtitle = tvshowtitle[0:-5]
-
-        tvshowtitle_orig = brand_item.get('titleOrig') if brand_item.get('titleOrig') else tvshowtitle
-        if isinstance(tvshowtitle_orig, int):
-            tvshowtitle_orig = str(tvshowtitle_orig)
-        if tvshowtitle_orig.endswith(u'. Х/ф'):
-            tvshowtitle_orig = tvshowtitle_orig[0:-5]
-
-        title = item['episodeTitle']
-        if type(title) == int:
-            title = str(title)
-
-        year = brand_item['productionYearStart']
-
-        #Duration
-        duration = item['duration']
-
-        #Cast
-#        cast = []
-#        for actor in persons.get('actors', []):
-#            cast.append({'name': actor['name'],
-#                         'thumbnail': actor['cover']})
-
-        #Director
-#        director = []
-#        for director_ in persons.get('director', []):
-#            director.append(director_['name'])
-
-        #Writer
-#        writer = []
-#        for scenarist in persons.get('scenarist', []):
-#            writer.append(scenarist['name'])
-
-        #Country
-
-        country = []
-        for _country in brand_item['countries']:
-            country.append(_country['title'])
-
-        #Date
-        date = '%s.%s.%s' % (item['dateRec'][0:2], item['dateRec'][3:5], item['dateRec'][6:10])
-        aired = '%s-%s-%s' % (item['dateRec'][6:10], item['dateRec'][3:5], item['dateRec'][0:2])
-
-        episode = item['series'] if item['series'] != 0 else date_episode
-        season = self._get_season(brand_item['title'])
-
-        video_info = {'type':     mediatype,
-                      'brand_id': item['brandId'],
-                      'episode':  episode,
-                      'season':  season,
-                      'video_id': item['id'],
-                      'title':    tvshowtitle,
-                      'originaltitle': tvshowtitle_orig,
-                      }
-
-        if episode == 0:
-            season = 0
-
-        item_info = {# 'label':  label,
-                     #'cast':   cast,
-                     #'ratings': ratings,
-                     #'properties': properties,
-                     'info': {'video': {'date': date,
-                                        #'genre': genres,
-                                        'country': country,
-                                        'year': year,
-                                        'sortepisode': episode,
-                                        #'sortseason': season,
-                                        #'director': director,
-                                        'season': season,
-                                        'episode': episode,
-                                        'tvshowtitle': tvshowtitle,
-                                        'plot': plot,
-                                        'title': title,
-                                        'sorttitle': title,
-                                        'duration': duration,
-                                        #'writer': writer,
-                                        #'premiered': premiered,
-                                        'aired': aired,
-                                        'mediatype': mediatype,
-                                        }
-                              },
-                     'art': {'poster': poster},
-                     'fanart': fanart,
-                     'thumb':  thumb,
-                    }
-
-        result = {'item_info':  item_info,
-                  'video_info': video_info
-                  }
-        return result
+            yield self._get_item_info(brand_info, item, index)
 
     def _get_season(self, title):
         parts = title.split('-')
@@ -309,85 +209,186 @@ class RussiaTv:
 
         result = {'count': len(json['data']),
                   'pages': json['pagination']['pages'],
-                  'list':  self._make_video_list(json)}
+                  'list':  self._make_search_list(json, params)}
         return result
 
     def _make_video_list( self, json ):
 
         for item in json['data']:
-            yield self._get_video_info(item)
+            yield self._get_item_info(item)
 
-    def _get_video_info(self, item):
-        mediatype = 'tvshow' if (item['countFullVideos'] > 1) else 'movie'
+    def _make_search_list( self, json, params ):
+        full_list = params.get('full_list', True)
+        keyword = params['keyword']
+        
+        for item in json['data']:
+            if not full_list \
+              and not self._video_have_keyword(item, keyword):
+                continue
+            
+            yield self._get_item_info(item)
 
-        picture = item['pictures'][random.randint(0, len(item['pictures'])-1)]
-        banner = self._get_image(picture, u'prm')
-        poster = self._get_image(picture, u'bq')
+    def _get_item_info(self, brand, video=None, date_episode=0):
+        if video is not None:
+            mediatype = 'episode'
+        else:
+            mediatype = 'tvshow' if (brand['countFullVideos'] > 1) else 'movie'
 
-        picture = item['pictures'][random.randint(0, len(item['pictures'])-1)]
-        thumb = self._get_image(picture, u'hdr')
-        fanart = thumb
+        #Titles
+        brand_title = self._get_title(brand['title'])
+        brand_title_orig = self._get_title(brand.get('titleOrig')) if brand.get('titleOrig') else brand_title
 
-        title = item['title']
-        if isinstance(title, int):
-            title = str(title)
-        if title.endswith(u'. Х/ф'):
-            title = title[0:-5]
-
-        title_orig = item.get('titleOrig') if item.get('titleOrig') else title
-        if isinstance(title_orig, int):
-            title_orig = str(title_orig)
-        if title_orig.endswith(u'. Х/ф'):
-            title_orig = title_orig[0:-5]
-
+        year = brand['productionYearStart']
+        mpaa = self._get_mpaa(brand['ageRestrictions'])
+        
         country = []
-        for _country in item['countries']:
+        for _country in brand['countries']:
             country.append(_country['title'])
+        
+        body = self._parse_body(brand['body'])
 
-        video_info = {'type':     mediatype,
-                      'brand_id': item['id'],
-                      'sort':     item['sortBy'],
-                      'count':    item['countFullVideos'],
-                      'title':    title,
-                      'originaltitle': title_orig,
-                      }
+        if mediatype in ['tvshow', 'movie']:
+            
+            date = '%s.%s.%s' % (brand['dateRec'][0:2], brand['dateRec'][3:5], brand['dateRec'][6:10])
+            
+            picture = brand['pictures'][random.randint(0, len(brand['pictures'])-1)]
+            banner = self._get_image(picture, u'prm')
+            poster = self._get_image(picture, u'bq')
+    
+            picture = brand['pictures'][random.randint(0, len(brand['pictures'])-1)]
+            thumb = self._get_image(picture, u'hdr')
+            fanart = thumb
 
-        item_info = {'label':  title,
-                     #'cast':   cast,
-                     #'ratings': self._get_rating(item),
-                     #'properties': properties,
-                     'info': {'video': {'date': '%s.%s.%s' % (item['dateRec'][0:2], item['dateRec'][3:5], item['dateRec'][6:10]),
-                                        #'genre': genres,
-                                        'country': country,
-                                        'year': item.get('productionYearStart'),
-                                        'title': title,
-                                        'originaltitle': title_orig,
-                                        'sorttitle': title,
-                                        #'tvshowtitle': title,
-                                        'plot': self._remove_html(item['body']),
-                                        'mpaa': self._get_mpaa(item['ageRestrictions']),
-                                        #'duration': duration,
-                                        #'director': director,
-                                        #'writer': writer,
-                                        'aired': '%s-%s-%s' % (item['dateRec'][6:10], item['dateRec'][3:5], item['dateRec'][0:2]),
-                                        'mediatype': mediatype,
-                                        }
-                              },
-                              'art': {'poster': poster,
-                                      'banner': banner
-                                      },
-                              'fanart': fanart,
-                              'thumb':  thumb,
-                     }
+            tags = []
+            for _tag in brand['tags']:
+                tags.append(_tag['title'])
 
+            video_info = {'type': mediatype,
+                          'brand_id': brand['id'],
+                          'sort': brand['sortBy'],
+                          'count': brand['countFullVideos'],
+                          'title': brand_title,
+                          'have_trailer': brand['countVideos'] > brand['countFullVideos'],
+                          'originaltitle': brand_title_orig,
+                          }
+    
+            item_info = {'label': brand_title,
+                         'cast': body.get('cast', []),
+                         'info': {'video': {'date': date,
+                                            'country': country,
+                                            'year': year,
+                                            'title': brand_title,
+                                            'originaltitle': brand_title_orig,
+                                            'sorttitle': brand_title,
+                                            'plotoutline': brand['anons'],
+                                            'plot': body['plot'],
+                                            'mpaa': mpaa,
+                                            'director': body.get('director', []),
+                                            'writer': body.get('writer', []),
+                                            'credits': body.get('credits', []),
+                                            'mediatype': mediatype,
+                                            'tag': tags,
+                                            }
+                                  },
+                         'art': {'poster': poster,
+                                 'banner': banner
+                                 },
+                         'fanart': fanart,
+                         'thumb':  thumb,
+                         'content_lookup': False,
+                         }
+        elif mediatype == 'episode':
+    
+            #Defaults
+            poster = self._get_image(video['pictures'], u'bq')
+            thumb = self._get_image(video['pictures'], u'hdr')
+            fanart = thumb
+    
+            episode_title = self._get_title(video['episodeTitle'])
+    
+            #Date
+            date = '%s.%s.%s' % (video['dateRec'][0:2], video['dateRec'][3:5], video['dateRec'][6:10])
+            aired = '%s-%s-%s' % (video['dateRec'][6:10], video['dateRec'][3:5], video['dateRec'][0:2])
+    
+            episode = video['series'] if video['series'] != 0 else date_episode
+            season = self._get_season(brand['title'])
+    
+            tags = []
+            for _tag in video['tags']:
+                tags.append(_tag['title'])
+
+            video_info = {'type': mediatype,
+                          'brand_id': video['brandId'],
+                          'episode': episode,
+                          'season': season,
+                          'video_id': video['id'],
+                          'title': brand_title,
+                          'originaltitle': brand_title_orig,
+                          }
+    
+            if episode == 0:
+                season = 0
+    
+            item_info = {'cast': body.get('cast', []),
+                         'info': {'video': {'date': date,
+                                            'country': country,
+                                            'year': year,
+                                            'sortepisode': episode,
+                                            'sortseason': season,
+                                            'director': body.get('director', []),
+                                            'season': season,
+                                            'episode': episode,
+                                            'tvshowtitle': brand_title,
+                                            'plot': video['anons'],
+                                            'mpaa': mpaa,
+                                            'title': episode_title,
+                                            'sorttitle': episode_title,
+                                            'duration': video['duration'],
+                                            'writer': body.get('writer', []),
+                                            'aired': aired,
+                                            'mediatype': mediatype,
+                                            'tag': tags,
+                                            }
+                                  },
+                         'art': {'poster': poster},
+                         'fanart': fanart,
+                         'thumb':  thumb,
+                         'content_lookup': False,
+                        }
+            
         video_info = {'item_info':  item_info,
                       'video_info': video_info
                       }
+
         return video_info
+
+    def get_trailer_url( self, params ):
+
+        brand_info = self._get_brand_data(params)
+
+        url_params = {'#brand_id': str(params['brand_id'])}
+        
+        for type in [3, 2]:
+            u_params = {'limit': brand_info['countVideos'],
+                        'type': type,
+                        }
+    
+            r = self._http_request('videos', u_params, url_params=url_params)
+            json = self._extract_json(r)
+            if json['data']:
+                while json['data']:
+                    video = json['data'][random.randint(0, len(json['data'])-1)]
+                    if video['series'] == 0 \
+                      and video['duration'] <= 600:
+                        return self._get_video_url(video)
+                    else:
+                        json['data'].remove(video)
+        
+        raise RussiaTvApiError('Trailer not found')
 
     def get_video_url( self, params ):
 
-        brand_info = self._get_brand_info(params)
+        brand_info = self._get_brand_data(params)
 
         if params['type'] == 'movie':
             url_params = {'#brand_id': str(params['brand_id'])}
@@ -402,7 +403,7 @@ class RussiaTv:
             else:
                 raise RussiaTvApiError('Video not found')
 
-            video_details = self._get_video_info(brand_info)
+            video_details = self._get_item_info(brand_info)
 
         elif params['type'] == 'episode':
             url_params = {'#video_id': str(params['video_id'])}
@@ -411,7 +412,7 @@ class RussiaTv:
             json = self._extract_json(r)
             data = json['data']
 
-            video_details = self._get_episode_info(data, brand_info)
+            video_details = self._get_item_info(brand_info, data)
         else:
             raise RussiaTvApiError('Wrong media type')
 
@@ -462,6 +463,9 @@ class RussiaTv:
             return ''
 
     def _remove_html( self, text ):
+        if not text:
+            return text
+
         result = text
         result = result.replace(u'&nbsp;',      u' ')
         result = result.replace(u'&pound;',     u'£')
@@ -559,5 +563,83 @@ class RussiaTv:
 
         return re.sub('<[^<]+?>', '', result)
 
+    def _get_title(self, title):
+        if title is None:
+            return title
+        
+        if isinstance(title, int):
+            title = str(title)
+
+        for str_end in [u'. Х/ф', u' Х/ф']:
+            if title.endswith(str_end):
+                title = title[0:-len(str_end)]
+
+        return title
+        
+    def _parse_body(self, text):
+        plot = []
+        result = {}
+                
+        _text = text
+        removed_strings = [u'\t']
+        for string in removed_strings:
+            _text = _text.replace(string, '')
+        
+        main_parts = _text.split(u'\r\n')
+        for main_part in main_parts:
+            if not main_part:
+                continue
+            parts = main_part.split(u'<br />')
+            for _part in parts:
+                part = self._remove_html(_part)
+                if not part:
+                    continue
+                peoples = self._get_peoples(part)
+                if peoples is not None:
+                    for key, list in peoples.iteritems():
+                        if result.get(key) is None:
+                            result[key] = list
+                        else:
+                            for val in list:
+                                result[key].append(val)
+                elif part.startswith(u'Смотрите также: '):
+                    pass 
+                elif part.startswith(u'Страница проекта'):
+                    pass
+                elif part.startswith(u'Официальный сайт проекта'):
+                    pass
+                else:
+                    plot.append(part)
+            
+        result['plot'] = u'[CR]'.join(plot)
+        
+        return result
+
+    def _get_peoples(self, string):
+        for prop, substrings in self.peoples.iteritems():
+            for substring in substrings:
+                if string.startswith(substring):
+                    peoples = string[len(substring):].split(u', ')
+                    list = []
+                    for people in peoples:
+                        parts = people.split(u' и ')
+                        for part in parts:
+                            if prop == 'cast':
+                                list.append({'name': part})
+                            else:
+                                list.append(part)
+                    return {prop: list}
+        return None
+
+    def _video_have_keyword(self, item, keyword):
+        title = self._get_title(item['title'])
+        originaltitle = self._get_title(item.get('titleOrig')) if item.get('titleOrig') else title
+
+        kw = keyword.decode('utf-8').lower()
+    
+        result = (title.decode('utf-8').lower().find(kw) >= 0 or originaltitle.decode('utf-8').lower().find(kw) >= 0)
+    
+        return result
+            
 if __name__ == '__main__':
     pass

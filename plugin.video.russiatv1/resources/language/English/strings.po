@@ -62,6 +62,10 @@ msgctxt "#30042"
 msgid "Video not found"
 msgstr ""
 
+msgctxt "#30043"
+msgid "Trailer not found"
+msgstr ""
+
 msgctxt "#30201"
 msgid "File names for saving with 'Add To Lib'"
 msgstr ""
