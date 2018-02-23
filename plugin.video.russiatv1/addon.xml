@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addon id="plugin.video.russiatv1" version="0.1.5" name="Россия 1" provider-name="vl.maksime">
     <requires>
-        <import addon="xbmc.python" version="2.1.0"/>
+        <import addon="xbmc.python" version="2.19.0"/>
         <import addon="script.module.requests" version="2.12.4"/>
         <import addon="script.module.simpleplugin" version="2.3.2"/>
     </requires>
