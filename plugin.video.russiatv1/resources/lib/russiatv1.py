@@ -11,28 +11,26 @@ class RussiaTvApiError(Exception):
     """Custom exception"""
     pass
 
-def sort_by_date(item):
-    date = item['dateRec'][6:10] + item['dateRec'][3:5] + item['dateRec'][0:2] + item['dateRec'][12:].replace(':', '')
-    return date
-
 class RussiaTv:
 
-    def __init__( self, params = {} ):
+    def __init__(self, params=None):
+        params = params or {}
 
         #Settings
         self.video_quality = params.get('video_quality', 0)
         self.default_limit = 20
 
-        vgtrk_dev_url = 'http://vgtrk-data.dev.webdeveloperlab.ru'
+        vgtrk_dev_url = 'http://storage2.russia1.mobileappdeveloper.ru'
         vgtrk_api_url = 'https://api.vgtrk.com/api/v1'
 
-        self._actions = {'main':            {'url': vgtrk_dev_url + '/r1_main.json'},
+        self._actions = {'main':            {'url': vgtrk_dev_url + '/public/russia1/r1_main.json'},
                          'category_items':  {'url': vgtrk_api_url + '/brands/channels/1/tags/#cat_id'},
                          'videos':          {'url': vgtrk_api_url + '/videos/brands/#brand_id/channels/1'},
                          'brand':           {'url': vgtrk_api_url + '/brands/#brand_id'},
                          'video':           {'url': vgtrk_api_url + '/videos/#video_id'},
                          'episode':         {'url': vgtrk_api_url + '/episodes/#episode_id'},
                          'search':          {'url': vgtrk_api_url + '/brands/channels/1'},
+                         'player':          {'url': 'https://player.vgtrk.com/iframe/datavideo/id/#video_id/sid/russiatv'},
                          }
 
         self.peoples = {'cast': [u'В ролях: ', u'В главной роли: ', u'В главных ролях:', u'Текст читает: ',
@@ -44,7 +42,9 @@ class RussiaTv:
                         #            u'Художник по гриму: ', u'Режиссер монтажа: ', u'Автор идеи: ', u'Главный автор: ', u'Автор: '],
                         }
 
-    def _http_request( self, action, params = {}, url_params=None ):
+    def _http_request( self, action, params=None, url_params=None ):
+        params = params or {}
+
         action_settings = self._actions.get(action)
 
         url = action_settings['url']
@@ -63,7 +63,7 @@ class RussiaTv:
         try:
             r = requests.get(url, params=params, headers=headers)
             r.raise_for_status()
-        except requests.ConnectionError as err:
+        except requests.ConnectionError:
             raise RussiaTvApiError('Connection error')
 
         return r
@@ -74,9 +74,13 @@ class RussiaTv:
         except ValueError as err:
             raise RussiaTvApiError(err)
 
-        if json['metadata'].get('code') is not None \
+        if json.get('metadata') is not None \
+          and json['metadata'].get('code') is not None \
           and json['metadata']['code'] != 200:
             raise RussiaTvApiError(json['metadata']['errorMessage'])
+        elif json.get('status') is not None \
+          and json['status'] != 200:
+            raise RussiaTvApiError(json['errors'])
 
         return json
 
@@ -149,7 +153,7 @@ class RussiaTv:
         episodes = json['data']
         
         if sort == 'date':
-            episodes.sort(key=sort_by_date)
+            episodes.sort(key=self.sort_by_date)
 
         index = start_num
         for item in episodes:
@@ -204,8 +208,6 @@ class RussiaTv:
 
         r = self._http_request('search', u_params)
         json = self._extract_json(r)
-
-        items = json.get('items', [])
 
         result = {'count': len(json['data']),
                   'pages': json['pagination']['pages'],
@@ -368,9 +370,9 @@ class RussiaTv:
 
         url_params = {'#brand_id': str(params['brand_id'])}
         
-        for type in [3, 2]:
+        for item_type in [3, 2]:
             u_params = {'limit': brand_info['countVideos'],
-                        'type': type,
+                        'type': item_type,
                         }
     
             r = self._http_request('videos', u_params, url_params=url_params)
@@ -416,10 +418,25 @@ class RussiaTv:
         else:
             raise RussiaTvApiError('Wrong media type')
 
+        self._check_video_access(data['id'])
+
         item_info = video_details['item_info']
         item_info['path'] = self._get_video_url(data)
 
         return item_info
+
+    def _check_video_access(self, video_id):
+        url_params = {'#video_id': str(video_id)}
+
+        r = self._http_request('player', url_params=url_params)
+        json = self._extract_json(r)
+
+        medialist = json['data']['playlist']['medialist']
+        
+        for item in medialist:
+            if item['errors'] and item['id'] == video_id:
+                raise RussiaTvApiError(item['errors'].encode('utf-8'))
+
 
     def _get_video_url( self, data ):
 
@@ -641,5 +658,9 @@ class RussiaTv:
     
         return result
             
+    def sort_by_date(self, item):
+        date = item['dateRec'][6:10] + item['dateRec'][3:5] + item['dateRec'][0:2] + item['dateRec'][12:].replace(':', '')
+        return date
+
 if __name__ == '__main__':
     pass

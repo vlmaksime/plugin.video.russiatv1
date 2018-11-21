@@ -6,7 +6,7 @@ import xbmc
 import xbmcgui
 import xbmcplugin
 
-from simpleplugin import Plugin
+from simpleplugin import Plugin, SimplePluginError
 
 from resources.lib.russiatv1 import *
 
@@ -27,7 +27,7 @@ def _show_api_error(err):
     plugin.log_error(err)
     try:
         text = _(str(err))
-    except:
+    except SimplePluginError:
         text = str(err)
 
     xbmcgui.Dialog().notification(plugin.addon.getAddonInfo('name'), text, xbmcgui.NOTIFICATION_ERROR)
