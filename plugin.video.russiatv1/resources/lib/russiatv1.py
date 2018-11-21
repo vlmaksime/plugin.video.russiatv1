@@ -20,10 +20,10 @@ class RussiaTv:
         self.video_quality = params.get('video_quality', 0)
         self.default_limit = 20
 
-        vgtrk_dev_url = 'http://vgtrk-data.dev.webdeveloperlab.ru'
+        vgtrk_dev_url = 'http://storage2.russia1.mobileappdeveloper.ru'
         vgtrk_api_url = 'https://api.vgtrk.com/api/v1'
 
-        self._actions = {'main':            {'url': vgtrk_dev_url + '/r1_main.json'},
+        self._actions = {'main':            {'url': vgtrk_dev_url + '/public/russia1/r1_main.json'},
                          'category_items':  {'url': vgtrk_api_url + '/brands/channels/1/tags/#cat_id'},
                          'videos':          {'url': vgtrk_api_url + '/videos/brands/#brand_id/channels/1'},
                          'brand':           {'url': vgtrk_api_url + '/brands/#brand_id'},
