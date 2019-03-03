@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<addon id="plugin.video.russiatv1" version="0.2.1" name="Россия 1" provider-name="vl.maksime">
+<addon id="plugin.video.russiatv1" version="0.2.2" name="Россия 1" provider-name="vl.maksime">
     <requires>
         <import addon="xbmc.python" version="2.19.0"/>
         <import addon="script.module.requests" version="2.12.4"/>
@@ -22,7 +22,7 @@
         <website>https://russia.tv/</website>
         <email>vl.maksime@gmail.com</email>
         <source>https://github.com/vlmaksime/plugin.video.russiatv1</source>
-        <news>v0.2.1 (2018-01-09)[CR]- Учтены изменения в API ресурсаv[CR][CR]0.1.5 (2018-01-09)[CR]- Оптимизация[CR]- Реализовано получение актерского состава из описания[CR]- В описании материала добавлена возможность просмотреть трейлер</news>
+        <news>v0.2.2 (2019-03-03)[CR]- Учтены изменения в API ресурса[CR][CR]v0.2.1 (2018-01-09)[CR]- Учтены изменения в API ресурсаv[CR][CR]0.1.5 (2018-01-09)[CR]- Оптимизация[CR]- Реализовано получение актерского состава из описания[CR]- В описании материала добавлена возможность просмотреть трейлер</news>
         <assets>
             <icon>icon.png</icon>
             <fanart>fanart.jpg</fanart>

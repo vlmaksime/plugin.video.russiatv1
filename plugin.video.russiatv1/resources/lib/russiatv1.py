@@ -23,7 +23,7 @@ class RussiaTv:
         vgtrk_dev_url = 'http://storage2.russia1.mobileappdeveloper.ru'
         vgtrk_api_url = 'https://api.vgtrk.com/api/v1'
 
-        self._actions = {'main':            {'url': vgtrk_dev_url + '/public/russia1/r1_main.json'},
+        self._actions = {'main':            {'url': vgtrk_api_url + '/menu/channels/1'},
                          'category_items':  {'url': vgtrk_api_url + '/brands/channels/1/tags/#cat_id'},
                          'videos':          {'url': vgtrk_api_url + '/videos/brands/#brand_id/channels/1'},
                          'brand':           {'url': vgtrk_api_url + '/brands/#brand_id'},
@@ -53,7 +53,7 @@ class RussiaTv:
             for key, val in url_params.iteritems():
                 url = url.replace(key, str(val))
 
-        headers = {'User-Agent': 'mobile-russitv1-android',
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:65.0) Gecko/20100101 Firefox/65.0',
                    'Accept': '*/*',
                    'Accept-Encoding': 'gzip, deflate',
                    'Connection': 'keep-alive',
@@ -89,7 +89,7 @@ class RussiaTv:
 
         json = self._extract_json(r)
 
-        for category in json['categories']:
+        for category in json['data']:
             tags = []
             for tag in category['tags']:
                 tags.append(str(tag['id']))
