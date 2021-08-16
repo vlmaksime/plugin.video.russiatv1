@@ -196,7 +196,6 @@ class BrandInfo(simplemedia.VideoInfo):
             title_parts.append(self._title())
 
         return '.'.join(title_parts)
-        return '.'.join(title_parts)
 
     @staticmethod
     def _get_image(preset, picture_item):

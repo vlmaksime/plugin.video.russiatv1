@@ -35,7 +35,6 @@ class RussiaTvClient(object):
     def __del__(self):
         self._client.close()
 
-
     @staticmethod
     def _extract_json(r):
         try:
