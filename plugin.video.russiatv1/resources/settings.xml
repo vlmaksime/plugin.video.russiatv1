@@ -3,8 +3,9 @@
     <setting label="30201" type="bool" id="use_atl_names" default="false" />
     <setting label="30202" type="slider" id="history_length" default="20" range="5,5,50" option="int" />
     <setting label="30203" type="slider" id="limit" default="20" range="5,5,100" option="int" />
+    <setting label="30204" type="slider" id="season_limit" default="100" range="10,10,1000" option="int" />
     <setting type="sep"/>
-    <setting label="30210" type="enum" id="video_quality" lvalues="30211|30212|30213|30214|30215" default="0"/>
+    <setting label="30210" type="enum" id="video_quality" lvalues="30211|30212|30213|30214|30215" default="4"/>
     <setting type="bool" id="united_search" visible="false" default="true" />
-    <setting type="text" id="us_command" visible="false" default="action=search&amp;keyword=" />
+    <setting type="text" id="us_command" visible="false" default="search/?keyword=" />
 </settings>

@@ -1,582 +1,517 @@
 # -*- coding: utf-8 -*-
-# Module: default
 # License: GPL v.3 https://www.gnu.org/copyleft/gpl.html
 
+from __future__ import unicode_literals
+
+import simplemedia
 import xbmc
-import xbmcgui
 import xbmcplugin
+from simpleplugin import py2_decode
 
-from simpleplugin import Plugin, SimplePluginError
+from resources.libs import (RussiaTv, RussiaTvError,
+                            BrandInfo, SeasonInfo, VideoInfo,
+                            EmptyListItem, ListItem)
 
-from resources.lib.russiatv1 import *
-
-# Create plugin instance
-plugin = Plugin()
+plugin = simplemedia.RoutedPlugin()
 _ = plugin.initialize_gettext()
 
-def _init_api():
-    settings_list = ['video_quality']
+BrandInfo.plugin = plugin
+EmptyListItem.plugin = plugin
 
-    settings = {}
-    for id in settings_list:
-        settings[id] = plugin.get_setting(id)
 
-    return RussiaTv(settings)
-
-def _show_api_error(err):
-    plugin.log_error(err)
-    try:
-        text = _(str(err))
-    except SimplePluginError:
-        text = str(err)
-
-    xbmcgui.Dialog().notification(plugin.addon.getAddonInfo('name'), text, xbmcgui.NOTIFICATION_ERROR)
-
-def _show_notification(text):
-    xbmcgui.Dialog().notification(plugin.addon.getAddonInfo('name'), text)
-
-def _get_request_params( params ):
-    result = {}
-    for param in params:
-        if param[0] == '_':
-            result[param[1:]] = params[param]
-    return result
-
-def _remove_param(params, name):
-    if params.get(name):
-        del params[name]
-
-@plugin.action()
+@plugin.route('/')
 def root():
-    return plugin.create_listing(_list_root(), content='files')
+    plugin.create_directory(_list_root(), content='', category=plugin.name)
+
 
 def _list_root():
-
-    items = []
     try:
-        for category in _get_categories():
-            params = {'cat':     'category',
-                      '_cat_id': category['cat_id']
-                      }
-            items.append( {'action': 'list_videos', 'label': category['label'], 'params': params} )
-    except RussiaTvApiError as err:
-        _show_api_errosr(err)
+        menu_items = _get_menu_items()
+    except (simplemedia.WebClientError, RussiaTvError) as e:
+        plugin.notify_error(e)
+    else:
+        for menu_item in menu_items:
+            url = plugin.url_for('menu', menu_id=menu_item['id'])
+            list_item = {'label': menu_item['title'],
+                         'url': url,
+                         'icon': menu_item['icon'],
+                         'fanart': plugin.fanart,
+                         'is_folder': True,
+                         'is_playble': False,
+                         'content_lookup': False,
+                         }
+            yield list_item
 
-    items.append({'action': 'search_history', 'label': _('Search'), 'icon': _get_image('DefaultAddonsSearch.png')})
+    url = plugin.url_for('search_history')
+    list_item = {'label': _('Search'),
+                 'url': url,
+                 'icon': plugin.get_image('DefaultAddonsSearch.png'),
+                 'fanart': plugin.fanart,
+                 'is_folder': True,
+                 'is_playble': False,
+                 'content_lookup': False,
+                 }
+    yield list_item
 
-    for item in items:
-        params = item.get('params', {})
-        url = plugin.get_url(action=item['action'], **params)
 
-        item_icon = item.get('icon')
-        if not item_icon:
-            item_icon = plugin.icon
+@plugin.route('/menu/<int:menu_id>/')
+def menu(menu_id):
+    menu_info = _menu_info(menu_id)
 
-        list_item = {'label': item['label'],
-                     'url': url,
-                     'icon': item_icon,
-                     'fanart': plugin.fanart,
-                     'content_lookup': False,
-                     }
-        yield list_item
+    offset = plugin.params.offset or '0'
+    offset = int(offset)
+
+    limit = plugin.params.limit
+    if not limit:
+        limit = plugin.get_setting('limit', False)
+    limit = int(limit)
+    try:
+        brand_result = RussiaTv().brands(menu_info['tags'], limit, offset)
+    except (RussiaTvError, simplemedia.WebClientError) as e:
+        plugin.notify_error(e)
+        plugin.create_directory([], succeeded=False)
+    else:
+        page_params = {'menu_id': menu_id,
+                       }
+
+        pages = _get_pages(page_params, offset, limit, brand_result['pagination']['totalCount'], 'menu')
+
+        category_parts = [menu_info['title'],
+                          '{0} {1}'.format(_('Page'), offset + 1),
+                          ]
+
+        result = {'items': _list_brands(brand_result['data'], pages),
+                  'total_items': len(brand_result['data']),
+                  'content': 'movies',
+                  'category': ' / '.join(category_parts),
+                  'sort_methods': {'sortMethod': xbmcplugin.SORT_METHOD_UNSORTED, 'label2Mask': '%Y / %O'},
+                  'update_listing': (offset > 0),
+                  }
+        plugin.create_directory(**result)
+
+
+def _list_brands(brands, pages):
+    use_atl_names = _use_atl_names()
+
+    for brand_info in brands:
+        item_info = BrandInfo(brand_info, atl_names=use_atl_names)
+        if item_info.mediatype == 'movie':
+            video_info = _get_movie_video_info(brand_info['id'], brand_info['sortBy'])
+            item_info.set_video_info(video_info)
+
+        if brand_info['countVideos'] > brand_info['countFullVideos']:
+            trailer_url = _get_trailer_url(brand_info['id'])
+            item_info.set_trailer(trailer_url)
+
+        listitem = ListItem(item_info)
+
+        url = _get_listitem_url(item_info, use_atl_names)
+        listitem.set_url(url)
+
+        yield listitem.get_item()
+
+    if pages is not None:
+        for listitem in _page_items(pages):
+            yield listitem
+
+
+@plugin.route('/brand/<int:brand_id>/videos/')
+def brand_videos(brand_id):
+    if plugin.params.offset is None:
+        brand_seasons(brand_id)
+    else:
+        brand_episodes(brand_id)
+
+
+def brand_seasons(brand_id):
+    limit = plugin.get_setting('season_limit')
+    try:
+        api = RussiaTv()
+        brand_info = api.brand_info(brand_id)
+        videos = api.videos(brand_id, brand_info['sortBy'])
+    except (RussiaTvError, simplemedia.WebClientError) as e:
+        plugin.notify_error(e)
+        plugin.create_directory([], succeeded=False)
+    else:
+        total_videos = videos['pagination']['totalCount']
+        result = {'items': _list_seasons(brand_info, limit, total_videos),
+                  'total_items': int(total_videos / limit),
+                  'content': 'seasons',
+                  'category': brand_info['title'],
+                  'sort_methods': {'sortMethod': xbmcplugin.SORT_METHOD_UNSORTED, 'label2Mask': '%Y / %O'},
+                  }
+        plugin.create_directory(**result)
+
+
+def _list_seasons(brand_info, limit, total_episodes):
+    use_atl_names = _use_atl_names()
+
+    season_info = SeasonInfo(brand_info, limit, total_episodes)
+
+    offset = 0
+    while (offset * limit) + 1 < total_episodes:
+        season_info.set_offset(offset)
+
+        listitem = ListItem(season_info)
+
+        url = _get_listitem_url(season_info, use_atl_names)
+        listitem.set_url(url)
+
+        offset += 1
+
+        yield listitem.get_item()
+
+
+def brand_episodes(brand_id):
+    offset = plugin.params.offset or '0'
+    offset = int(offset)
+
+    limit = plugin.params.limit
+    if not limit:
+        limit = plugin.get_setting('season_limit', False)
+    limit = int(limit)
+    try:
+        api = RussiaTv()
+        brand_info = api.brand_info(brand_id)
+        videos = api.videos(brand_id, brand_info['sortBy'], limit, offset)
+    except (RussiaTvError, simplemedia.WebClientError) as e:
+        plugin.notify_error(e)
+        plugin.create_directory([], succeeded=False)
+    else:
+        category_parts = [brand_info['title'],
+                          '{0} {1}-{2}'.format(_('Episodes'), (offset * limit) + 1,
+                                               (offset * limit) + len(videos['data']))]
+
+        sort_methods = []
+        if _use_atl_names():
+            sort_methods.append(xbmcplugin.SORT_METHOD_UNSORTED)
+        else:
+            sort_methods.append(xbmcplugin.SORT_METHOD_EPISODE)
+
+        result = {'items': _list_episodes(brand_info, videos['data'], offset, limit),
+                  'total_items': len(videos['data']),
+                  'content': 'episodes',
+                  'category': ' / '.join(category_parts),
+                  'sort_methods': sort_methods,
+                  }
+        plugin.create_directory(**result)
+
+
+def _list_episodes(brand_info, videos, offset, limit):
+    use_atl_names = _use_atl_names()
+
+    episode = offset * limit
+    for video_item in videos:
+        video_info = VideoInfo(brand_info, video_item, atl_names=use_atl_names)
+        episode += 1
+        video_info.set_episode(episode)
+
+        listitem = ListItem(video_info)
+
+        url = _get_listitem_url(video_info, use_atl_names)
+        listitem.set_url(url)
+
+        yield listitem.get_item()
 
 
 @plugin.mem_cached(180)
-def _get_categories():
+def _get_menu_items():
+    api = RussiaTv()
+
+    menu_result = api.menu()
+    menu_items = menu_result['data']
+
+    if menu_result['pagination']['totalCount'] > menu_result['pagination']['limit']:
+        offset = menu_result['pagination']['limit']
+        limit = menu_result['pagination']['totalCount'] - offset
+        menu_result = api.menu(limit, offset)
+        menu_items.extend(menu_result['data'])
+
+    movie_icon = plugin.get_image('DefaultMovies.png')
+    tvshow_icon = plugin.get_image('DefaultTVShows.png')
+
     result = []
-    categories = _api.get_categories()
-    for category in categories:
-        cat_info = {'label': category['title'],
-                    'cat_id': ':'.join(category['tags'])
-                    }
-        result.append(cat_info)
+    for menu_item in menu_items:
+        tags = []
+        for tag in menu_item['tags']:
+            tags.append(str(tag['id']))
+
+        if menu_item['id'] == 267:
+            icon = movie_icon
+        else:
+            icon = tvshow_icon
+
+        item_info = {'id': menu_item['id'],
+                     'title': menu_item['title'],
+                     'tags': tags,
+                     'icon': icon,
+                     }
+        result.append(item_info)
 
     return result
 
-def _get_category_title(cat_id):
-    try:
-        for category in _get_categories():
-            if category['cat_id'] == cat_id:
-                return category['label']
-    except RussiaTvApiError as err:
-        _show_api_error(err)
 
-    return None
+@plugin.route('/videos/<int:video_id>/')
+def play_video(video_id):
+    is_strm = plugin.params.strm == '1' \
+              and plugin.kodi_major_version() >= '18'
 
-def _join(str, parts):
-    new_parts = []
-    for val in parts:
-        if isinstance(val, unicode):
-            new_parts.append(val.encode('utf-8'))
-        else:
-            new_parts.append(val)
+    is_trailer = False
 
-    return str.join(new_parts)
-
-#list_videos
-@plugin.action()
-def list_videos( params ):
-    cur_cat  = params['cat']
-    cur_offset = int(params.get('_offset', '0'))
-    content = _get_category_content(cur_cat)
-    usearch = (params.get('usearch') == 'True')
-
-    if usearch:
-        params['_limit'] = 9999
-    elif params.get('_limit') is None:
-        params['_limit'] = plugin.limit
-
-    if not usearch \
-      and plugin.use_atl_names \
-      and params.get('_atl') is None:
-        params['_atl'] = plugin.use_atl_names
-
-    if not usearch\
-      and params.get('_sort') is None:
-        params['_sort'] = 'date'
-
-    update_listing = (params.get('update_listing')=='True')
-    if update_listing:
-        del params['update_listing']
-    else:
-        update_listing = (cur_offset > 0)
-
-    dir_params = {}
-    dir_params.update(params)
-    del dir_params['action']
-    if cur_offset > 0:
-        del dir_params['_offset']
+    succeeded = True
 
     try:
-        video_list = _get_video_list(cur_cat, _get_request_params(params))
-        succeeded = True
-    except RussiaTvApiError as err:
-        _show_api_error(err)
+        if video_id == 0:
+            raise RussiaTvError(_('Video not found'))
+
+        api = RussiaTv()
+
+        api.check_video_access(video_id)
+
+        video_info = api.video(video_id)
+        brand_info = api.brand_info(video_info['brandId'])
+
+        video_item = VideoInfo(brand_info, video_info, True)
+
+    except RussiaTvError as e:
+        plugin.notify_error(e, True)
         succeeded = False
-        return
-
-    category_title = []
-    if cur_cat in ['category', 'search']:
-        category_title.append('%s %d / %d' % (_('Page'), (cur_offset + 1), video_list['pages']))
-
-        if cur_cat == 'category':
-            title = _get_category_title(params.get('_cat_id', ''))
-        elif cur_cat == 'search':
-            title = _('Search')
-
-        if title is not None:
-            category_title.append(title)
-
-    elif  cur_cat == 'episodes':
-        category_title.append(video_list.get('title'))
-    category = _join(' / ', category_title)
-
-    if succeeded:
-        listing = _make_video_list(video_list, params, dir_params)
+        listitem = EmptyListItem()
+    except simplemedia.WebClientError as e:
+        plugin.notify_error(e)
+        succeeded = False
+        listitem = EmptyListItem()
     else:
-        listing = []
 
-    sort_methods = _get_sort_methods(cur_cat, params.get('_sort', ''))
+        listitem = ListItem(video_item)
 
-    return plugin.create_listing(listing, content=content, succeeded=succeeded, update_listing=update_listing, category=category, sort_methods=sort_methods)
+        url = plugin.url_for('play_video', video_id=video_id)
+        listitem.set_url(url)
 
-def _get_category_content( cat ):
-    if cat == 'episodes':
-        content = 'episodes'
-    elif cat in ['category', 'search']:
-        content = 'movies'
-    else:
-        content = 'files'
+        stream_url = _get_video_url(video_info['sources'])
+        listitem.set_path(stream_url)
 
-    return content
+        is_trailer = (video_info['videoType'] == 3)
 
-def _get_sort_methods( cat, sort='' ):
-    sort_methods = []
+    if succeeded \
+            and (is_strm or is_trailer):
+        listitem.__class__ = EmptyListItem
 
-    if cat == 'episodes' \
-      and not plugin.use_atl_names:
-        if sort == 'date':
-            sort_methods.append(xbmcplugin.SORT_METHOD_DATE)
-        else:
-            sort_methods.append(xbmcplugin.SORT_METHOD_EPISODE)
-    elif cat == 'search':
-        sort_methods.append({'sortMethod': xbmcplugin.SORT_METHOD_UNSORTED, 'label2Mask': '%Y'})
-        sort_methods.append(xbmcplugin.SORT_METHOD_VIDEO_YEAR)
-        sort_methods.append({'sortMethod': xbmcplugin.SORT_METHOD_TITLE_IGNORE_THE, 'label2Mask': '%Y'})
-    elif cat == 'category':
-        sort_methods.append({'sortMethod': xbmcplugin.SORT_METHOD_UNSORTED, 'label2Mask': '%Y'})
-    else:
-        sort_methods.append(xbmcplugin.SORT_METHOD_UNSORTED)
+    plugin.resolve_url(listitem.get_item(), succeeded)
 
-    return sort_methods
 
-def _get_video_list( cat, params ):
-    video_list = _api.get_video_list(cat, params)
-
-    return video_list
-
-def _make_video_list( video_list, params={}, dir_params = {} ):
-    cur_cat = params.get('cat', '')
-    keyword = params.get('_keyword', '')
-    cur_offset = int(params.get('_offset', '0'))
-    use_atl_names = (str(params.get('_atl','')) == 'True')
-
-    count = video_list['count']
-    total_pages = video_list.get('pages', 0)
-    if params.get('_limit') is None \
-     and video_list.get('limit') is not None:
-        params['_limit'] = video_list['limit']
-
-    search = (cur_cat == 'search')
-    usearch = (params.get('usearch') == 'True')
-
-    use_filters  = not usearch and (cur_cat in ['category'])
-    use_pages    = not usearch and total_pages
-
-    if use_filters:
-        filters = get_filters()
-        if params.get('_cat_id', '') != '':
-            yield _make_filter_item('sort', params, dir_params, filters)
-
-    if video_list['count']:
-        for video_item in video_list['list']:
-            yield _make_item(video_item, search, use_atl_names)
-
-    elif not usearch:
-        item_info = {'label': _make_colour_label('red', '[%s]' % _('Empty')),
-                     'is_folder': False,
-                     'is_playable': False,
-                     'url': ''}
-        yield item_info
-
-    if use_pages:
-        if cur_offset > 0:
-            if cur_offset == 1:
-                del params['_offset']
-            else:
-                params['_offset'] = cur_offset - 1
-            url = plugin.get_url(**params)
-            item_info = {'label': _('Previous page...'),
-                         'url':   url}
-            yield item_info
-
-        if (cur_offset + 1) < total_pages:
-            params['_offset'] = cur_offset + 1
-            url = plugin.get_url(**params)
-            item_info = {'label': _('Next page...'),
-                         'url':   url}
-            yield item_info
-
-def _make_filter_item( filter, params, dir_params, filters ):
-    cur_value = params.get('_%s' % filter, '')
-
-    filter_title = _get_filter_title(filter)
-    url = plugin.get_url(action='select_filer', filter = filter, **dir_params)
-    label = _make_category_label('yellowgreen', filter_title, _get_filter_name(filters[filter], cur_value))
-    list_item = {'label': label,
-                 'is_folder':   False,
-                 'is_playable': False,
-                 'url': url,
-                 'icon': _get_filter_icon(filter),
-                 'fanart': plugin.fanart,
-                 'content_lookup': False,
-                 }
-
-    return list_item
-
-def _get_filter_title( filter ):
-    result = ''
-    if filter =='sort': result = _('Sort')
-
-    return result
-
-def _get_filter_icon( filter ):
-    image = ''
-    if filter =='sort': image = _get_image('DefaultMovieTitle.png')
-
-    if not image:
-        image = plugin.icon
-
-    return image
-
-def _make_item( video_item, search, use_atl_names=False ):
-        label_list = []
-
-        video_type = video_item['video_info']['type']
-
-        item_info = video_item['item_info']
-        video_info = video_item['video_info']
-
-        if video_type == 'movie':
-            is_folder = False
-            is_playable = True
-
-            url_params = {'_type': video_type,
-                          '_brand_id': video_info['brand_id'],
-                          }
-            url = plugin.get_url(action='play', **url_params)
-
-            if use_atl_names:
-                title = item_info['info']['video']['originaltitle']
-            else:
-                title = item_info['info']['video']['title']
-
-            label_list.append(title)
-
-            if use_atl_names \
-              and isinstance(item_info['info']['video']['year'], int):
-                label_list.append(' (%d)' % item_info['info']['video']['year'])
-
-            if use_atl_names or search:
-                del item_info['info']['video']['title']
-
-        elif video_type == 'tvshow':
-            is_folder = True
-            is_playable = False
-
-            url_params = {'_brand_id': video_info['brand_id'],
-                          '_sort': video_info['sort'],
-                          }
-            if use_atl_names:
-                url_params['_atl'] = use_atl_names
-
-            url = plugin.get_url(action='list_videos', cat='episodes', **url_params)
-
-            if use_atl_names:
-                title = item_info['info']['video']['originaltitle']
-            else:
-                title = item_info['info']['video']['title']
-            label_list.append(title)
-
-            if use_atl_names \
-              and isinstance(item_info['info']['video']['year'], int):
-                label_list.append(' (%d)' % item_info['info']['video']['year'])
-
-        elif video_type == 'episode':
-            is_folder = False
-            is_playable = True
-
-            url_params = {'_type': video_type,
-                          '_brand_id': video_info['brand_id'],
-                          '_video_id': video_info['video_id'],
-                          }
-            url = plugin.get_url(action='play', **url_params)
-
-            if use_atl_names:
-                title = video_info['originaltitle']
-                if video_info['season'] != 0:
-                    season_string = '-%d' % video_info['season']
-                    if title.endswith(season_string):
-                        title = title[0:-len(season_string)]
-                label_list.append(title)
-                label_list.append('.s%02de%02d' % (video_info['season'], video_info['episode']))
-                if item_info['info']['video']['title']:
-                    label_list.append('.%s' % (item_info['info']['video']['title']))
-            else:
-                if not item_info['info']['video']['title']:
-                    item_info['info']['video']['title'] = '%s %d' % (_('Episode').decode('utf-8'), video_info['episode'])
-                label_list.append(item_info['info']['video']['title'])
-
-            if use_atl_names:
-                del item_info['info']['video']['title']
-
-        item_info['label'] = _join('', label_list)
-        item_info['url'] = url
-        item_info['is_playable'] = is_playable
-        item_info['is_folder'] = is_folder
-
-        if video_info.get('have_trailer') \
-          and video_info['have_trailer']:
-            url_params = {'_type': video_type,
-                          '_brand_id': video_info['brand_id'],
-                          }
-            trailer_url = plugin.get_url(action='trailer', **url_params)
-            item_info['info']['video']['trailer'] = trailer_url
-
-        _backward_capatibility(item_info)
-
-        return item_info
-
-def _backward_capatibility( item_info ):
-    major_version = xbmc.getInfoLabel('System.BuildVersion')[:2]
-
-    cast = []
-    castandrole = []
-    for _cast in item_info.get('cast',[]):
-        cast.append(_cast['name'])
-        castandrole.append((_cast['name']))
-    item_info['info']['video']['cast'] = cast
-    item_info['info']['video']['castandrole'] = castandrole
-
-    if major_version < '18':
-        for fields in ['genre', 'writer', 'director', 'country', 'credits']:
-            item_info['info']['video'][fields] = _join(' / ', item_info['info']['video'].get(fields,[]))
-
-    if major_version < '15':
-        item_info['info']['video']['duration'] = (item_info['info']['video'].get('duration', 0) / 60)
-
-def _make_category_label( color, title, category ):
-    label_parts = []
-    label_parts.append('[COLOR=%s][B]' % color)
-    label_parts.append(title)
-    label_parts.append(':[/B] ')
-    label_parts.append(category)
-    label_parts.append('[/COLOR]')
-    return _join('', label_parts)
-
-def _make_colour_label( color, title ):
-    label_parts = []
-    label_parts.append('[COLOR=%s][B]' % color)
-    label_parts.append(title)
-    label_parts.append('[/B][/COLOR]')
-    return _join('', label_parts)
-
-def _get_image( image ):
-    return image if xbmc.skinHasImage(image) else plugin.icon
-
-def get_filters():
-    sort = []
-    sort.append({'name': _('By release date'),
-                 'value': 'date'
-                 })
-    sort.append({'name': _('By alphabet'),
-                 'value': 'alpha'
-                 })
-
-    result = {'sort': sort,
+@plugin.route('/search/history/')
+def search_history():
+    result = {'items': plugin.search_history_items(),
+              'content': '',
+              'category': ' / '.join([py2_decode(plugin.name), _('Search')]),
               }
-    return result
 
-def _get_filter_name( list, value ):
-    for item in list:
-        if item['value'] == value:
-            return item['name']
+    plugin.create_directory(**result)
 
-@plugin.action()
-def search( params ):
 
-    keyword  = params.get('keyword', '')
-    usearch  = (params.get('usearch') == 'True')
+@plugin.route('/search/remove/<int:index>')
+def search_remove(index):
+    plugin.search_history_remove(index)
 
-    new_search = (keyword == '')
-    succeeded = False
+
+@plugin.route('/search/clear')
+def search_clear():
+    plugin.search_history_clear()
+
+
+@plugin.route('/search/')
+def search():
+    keyword = plugin.params.keyword or ''
+    usearch = plugin.params.usearch or ''
+    is_usearch = (usearch.lower() == 'true')
 
     if not keyword:
-        kbd = xbmc.Keyboard()
-        kbd.setDefault('')
-        kbd.setHeading(_('Search'))
-        kbd.doModal()
-        if kbd.isConfirmed():
-            keyword = kbd.getText()
+        keyword = plugin.get_keyboard_text('', _('Search'))
 
-    if keyword \
-      and new_search \
-      and not usearch:
-        with plugin.get_storage('__history__.pcl') as storage:
-            history = storage.get('history', [])
-            history.insert(0, {'keyword': keyword.decode('utf-8')})
-            if len(history) > plugin.history_length:
-                history.pop(-1)
-            storage['history'] = history
+        if keyword \
+                and not is_usearch:
+            plugin.update_search_history(keyword)
+            plugin.create_directory([], succeeded=False)
 
-        params['keyword'] = keyword
-        url = plugin.get_url(**params)
-        xbmc.executebuiltin('Container.Update("%s")' % url)
-        return
+            url = plugin.url_for('search', keyword=keyword)
+            xbmc.executebuiltin('Container.Update("%s")' % url)
+            return
 
-    if keyword:
-        succeeded = True
-        params['action'] = 'list_videos'
-        params['cat'] = 'search'
-        params['_keyword'] = keyword
-        params['_full_list'] = not usearch
-        return list_videos(params)
+    elif keyword is not None:
+        offset = plugin.params.offset or '0'
+        offset = int(offset)
 
-@plugin.action()
-def search_history():
+        limit = plugin.params.limit
+        if not limit:
+            limit = '9999' if is_usearch else plugin.get_setting('limit', False)
+        limit = int(limit)
 
-    with plugin.get_storage('__history__.pcl') as storage:
-        history = storage.get('history', [])
-
-        if len(history) > plugin.history_length:
-            history[plugin.history_length - len(history):] = []
-            storage['history'] = history
-
-    listing = []
-    listing.append({'label': _('New Search...'),
-                    'url': plugin.get_url(action='search'),
-                    'icon': _get_image('DefaultAddonsSearch.png'),
-                    'fanart': plugin.fanart})
-
-    for item in history:
-        listing.append({'label': item['keyword'],
-                        'url': plugin.get_url(action='search', keyword=item['keyword'].encode('utf-8')),
-                        'icon': plugin.icon,
-                        'fanart': plugin.fanart})
-
-    return plugin.create_listing(listing, content='files')
-
-@plugin.action()
-def select_filer( params ):
-    filter = params['filter']
-    filter_name = filter
-    filter_title = _get_filter_title(filter)
-    filter_key = '_%s' % filter
-
-    list = get_filters()[filter]
-
-    titles = []
-    for list_item in list:
-        titles.append(list_item['name'])
-
-    ret = xbmcgui.Dialog().select(filter_title, titles)
-    if ret >= 0:
-        filter_value = list[ret]['value']
-        if not filter_value and params.get(filter_key):
-            del params[filter_key]
+        try:
+            search_result = RussiaTv().brands_search(keyword, limit, offset)
+        except (RussiaTvError, simplemedia.WebClientError) as e:
+            plugin.notify_error(e)
+            plugin.create_directory([], succeeded=False)
         else:
-            params[filter_key] = filter_value
+            page_params = {'keyword': keyword,
+                           }
 
-        del params['action']
-        del params['filter']
+            pages = _get_pages(page_params, offset, limit, search_result['pagination']['totalCount'], 'search')
 
-        _remove_param(params, '_offset')
+            category_parts = [_('Search'), keyword,
+                              '{0} {1}'.format(_('Page'), offset + 1),
+                              ]
 
-        url = plugin.get_url(action='list_videos', update_listing=True, **params)
-        xbmc.executebuiltin('Container.Update("%s")' % url)
+            result = {'items': _list_brands(search_result['data'], pages),
+                      'total_items': len(search_result['data']),
+                      'content': 'movies',
+                      'category': ' / '.join(category_parts),
+                      'sort_methods': {'sortMethod': xbmcplugin.SORT_METHOD_UNSORTED, 'label2Mask': '%Y / %O'},
+                      'update_listing': (offset > 0),
+                      }
+            plugin.create_directory(**result)
 
-@plugin.action()
-def play( params ):
 
-    u_params = _get_request_params( params )
+def _menu_info(menu_id):
+    for menu_item in _get_menu_items():
+        if menu_item['id'] == menu_id:
+            return menu_item
 
-    try:
-        item = _api.get_video_url( u_params )
-        succeeded = True
-        if u_params['type'] == 'episode' \
-           and not item['info']['video']['title']:
-            item['info']['video']['title'] = '%s %d' % (_('Episode').decode('utf-8'), item['info']['video']['episode'])
-    except RussiaTvApiError as err:
-        _show_api_error(err)
-        item = None
-        succeeded = False
 
-    return plugin.resolve_url(play_item=item, succeeded=succeeded)
+def _get_pages(page_params, offset, limit, total, action):
+    # Parameters for previous page
+    if (offset * limit) >= limit:
+        prev_offset = offset - 1
+        if prev_offset > 0:
+            prev_page = {'offset': prev_offset,
+                         'limit': limit,
+                         }
+            prev_page.update(page_params)
+        else:
+            prev_page = page_params
+    else:
+        prev_page = None
 
-@plugin.action()
-def trailer( params ):
+    # Parameters for next page
+    next_offset = offset + 1
+    if total > (next_offset * limit):
+        next_page = {'offset': next_offset,
+                     'limit': limit,
+                     }
+        next_page.update(page_params)
+    else:
+        next_page = None
 
-    u_params = _get_request_params( params )
-    try:
-        path = _api.get_trailer_url( u_params )
-        succeeded = True
-    except RussiaTvApiError as err:
-        _show_api_error(err)
-        path = ""
-        succeeded = False
+    pages = {'action': action,
+             'prev': prev_page,
+             'next': next_page,
+             }
 
-    return plugin.resolve_url(path=path, succeeded=succeeded)
+    return pages
+
+
+def _use_atl_names():
+    return plugin.params.get('atl', '') == '1' \
+           or plugin.get_setting('use_atl_names')
+
+
+def _page_items(pages):
+    if pages['prev'] is not None:
+        url = plugin.url_for(pages['action'], **pages['prev'])
+        listitem = {'label': _('Previous page...'),
+                    'fanart': plugin.fanart,
+                    'is_folder': True,
+                    'url': url,
+                    'properties': {'SpecialSort': 'bottom'},
+                    'content_lookup': False,
+                    }
+        yield listitem
+
+    if pages['next'] is not None:
+        url = plugin.url_for(pages['action'], **pages['next'])
+        listitem = {'label': _('Next page...'),
+                    'fanart': plugin.fanart,
+                    'is_folder': True,
+                    'url': url,
+                    'properties': {'SpecialSort': 'bottom'},
+                    'content_lookup': False,
+                    }
+        yield listitem
+
+
+def _get_listitem_url(item_info, use_atl_names=False):
+    ext_dir_params = {}
+    ext_item_params = {}
+    if use_atl_names:
+        ext_dir_params['atl'] = 1
+        ext_item_params['strm'] = 1
+
+    if item_info.mediatype in ['movie', 'episode']:
+        url = plugin.url_for('play_video', video_id=item_info.video_id,
+                             **ext_item_params)
+    elif item_info.mediatype == 'tvshow':
+        url = plugin.url_for('brand_videos', brand_id=item_info.brand_id, **ext_dir_params)
+    elif item_info.mediatype == 'season':
+        url = plugin.url_for('brand_videos', brand_id=item_info.brand_id, offset=item_info.offset,
+                             limit=item_info.limit, **ext_dir_params)
+    else:
+        url = None
+
+    return url
+
+
+@plugin.cached(180)
+def _get_trailer_url(brand_id):
+    videos = RussiaTv().videos(brand_id, 'date', video_type=3, includes=['id'])
+    if videos['pagination']['totalCount'] > 0:
+        trailer_url = plugin.url_for('play_video', video_id=videos['data'][0]['id'])
+        return trailer_url
+
+
+@plugin.cached(180)
+def _get_movie_video_info(brand_id, order):
+    videos = RussiaTv().videos(brand_id, order, includes=['id', 'duration'])
+    if videos['data']:
+        result = videos['data'][0]
+    else:
+        result = {'id': 0,
+                  'duration': 0
+                  }
+    return result
+
+
+def _get_video_url(sources):
+    video_quality = plugin.get_setting('video_quality')
+
+    path = ''
+
+    if (not path or video_quality >= 0) and sources['mp4'].get('low'):
+        path = sources['mp4']['low']
+    if (not path or video_quality >= 0) and sources['mp4'].get('low-wide'):
+        path = sources['mp4']['low-wide']
+
+    if (not path or video_quality >= 1) and sources['mp4'].get('medium'):
+        path = sources['mp4']['medium']
+    if (not path or video_quality >= 1) and sources['mp4'].get('medium-wide'):
+        path = sources['mp4']['medium-wide']
+
+    if (not path or video_quality >= 2) and sources['mp4'].get('high-wide'):
+        path = sources['mp4']['high-wide']
+    if (not path or video_quality >= 2) and sources['mp4'].get('high'):
+        path = sources['mp4']['high']
+
+    if (not path or video_quality >= 3) and sources['mp4'].get('hd'):
+        path = sources['mp4']['hd']
+    if (not path or video_quality >= 3) and sources['mp4'].get('hd-wide'):
+        path = sources['mp4']['hd-wide']
+
+    if (not path or video_quality >= 4) and sources['mp4'].get('fhd'):
+        path = sources['mp4']['fhd']
+    if (not path or video_quality >= 4) and sources['mp4'].get('fhd-wide'):
+        path = sources['mp4']['fhd-wide']
+
+    return path
+
 
 if __name__ == '__main__':
-    _api = _init_api()
     plugin.run()

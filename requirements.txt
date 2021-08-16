@@ -1,0 +1,6 @@
+future
+requests
+mock
+git+https://github.com/vlmaksime/script.module.simpleplugin.git
+git+https://github.com/vlmaksime/script.module.simplemedia.git
+git+https://github.com/vlmaksime/Kodistubs.git@develop
