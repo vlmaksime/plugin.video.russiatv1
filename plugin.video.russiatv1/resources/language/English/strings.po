@@ -54,6 +54,10 @@ msgctxt "#30019"
 msgid "By alphabet"
 msgstr ""
 
+msgctxt "#30020"
+msgid "Episodes"
+msgstr ""
+
 msgctxt "#30041"
 msgid "Connection error"
 msgstr ""
@@ -64,6 +68,14 @@ msgstr ""
 
 msgctxt "#30043"
 msgid "Trailer not found"
+msgstr ""
+
+msgctxt "#30044"
+msgid "Ended"
+msgstr ""
+
+msgctxt "#30045"
+msgid "Continuing"
 msgstr ""
 
 msgctxt "#30201"
@@ -78,26 +90,30 @@ msgctxt "#30203"
 msgid "Results per page"
 msgstr ""
 
+msgctxt "#30204"
+msgid "Episodes per group"
+msgstr ""
+
 msgctxt "#30210"
 msgid "Video Quality"
 msgstr ""
 
 msgctxt "#30211"
-msgid "Auto"
+msgid "240p (Low)"
 msgstr ""
 
 msgctxt "#30212"
-msgid "240p"
+msgid "360p (Medium)"
 msgstr ""
 
 msgctxt "#30213"
-msgid "360p"
+msgid "540p (High)"
 msgstr ""
 
 msgctxt "#30214"
-msgid "540p"
+msgid "720p (HD)"
 msgstr ""
 
 msgctxt "#30215"
-msgid "720p (HD)"
+msgid "1080p (Full HD)"
 msgstr ""
