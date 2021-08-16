@@ -1,0 +1,36 @@
+name: Python application
+
+on:
+  push:
+    branches: [ master ]
+    tags: ["v*"]
+
+jobs:
+  publish-release:
+
+    runs-on: ubuntu-latest
+    env:
+      PYTHONIOENCODING: 'UTF-8'
+      ADDON_ID: 'plugin.video.russiatv1'
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install git+https://github.com/romanvm/kodi-addon-submitter.git
+    - name: Build packages
+      run: |
+        - submit-addon -s -z -m $ADDON_ID
+    - name: "Publishing"
+    - uses: "marvinpinto/action-automatic-releases@latest"
+      with:
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        prerelease: false
+        files: |
+          *.zip
+
