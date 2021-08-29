@@ -5,6 +5,7 @@ from __future__ import unicode_literals
 
 import simplemedia
 import xbmc
+import os
 
 from .listitems import BrandInfo, SeasonInfo, VideoInfo, EmptyListItem, ListItem
 from .russiatv1 import RussiaTvClient, RussiaTvError
@@ -27,4 +28,6 @@ class RussiaTv(RussiaTvClient):
         if addon.kodi_major_version() >= '17':
             headers['User-Agent'] = xbmc.getUserAgent()
 
-        self._client = simplemedia.WebClient(headers)
+        cookie_file = os.path.join(addon.profile_dir, 'russiatv.cookies')
+
+        self._client = simplemedia.WebClient(headers, cookie_file)

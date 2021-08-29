@@ -153,9 +153,12 @@ class RussiaTvClient(object):
         return j['data']
 
     def check_video_access(self, video_id):
-        url = 'https://player.vgtrk.com/iframe/datavideo/id/{0}/sid/russiatv'.format(video_id)
+        url = 'https://player.vgtrk.com/iframe/datavideo/'
+        params = {'id': video_id,
+                  'sid': 'russiatv',
+                  }
 
-        r = self._client.get(url)
+        r = self._client.get(url, params=params)
         j = self._extract_json(r)
 
         medialist = j['data']['playlist']['medialist']
