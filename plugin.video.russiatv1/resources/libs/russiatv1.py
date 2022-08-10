@@ -45,7 +45,10 @@ class RussiaTvClient(object):
         if json.get('metadata') is not None \
                 and json['metadata'].get('code') is not None \
                 and json['metadata']['code'] != 200:
-            raise RussiaTvError(json['metadata']['errorMessage'])
+            error_message = json['metadata'].get('errorMessage')
+            if error_message is None:
+                error_message = json['metadata'].get('errorType')
+            raise RussiaTvError(error_message)
         elif json.get('status') is not None \
                 and json['status'] != 200:
             raise RussiaTvError(json['errors'])
