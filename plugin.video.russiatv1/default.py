@@ -289,7 +289,12 @@ def play_video(video_id):
         listitem.set_url(url)
 
         stream_url = _get_video_url(video_info['sources'])
-        listitem.set_path(stream_url)
+
+        if not stream_url:
+            plugin.notify_error(_('Video not found'))
+            succeeded = False
+        else:
+            listitem.set_path(stream_url)
 
         is_trailer = (video_info['videoType'] == 3)
 
@@ -485,30 +490,35 @@ def _get_video_url(sources):
 
     path = ''
 
-    if (not path or video_quality >= 0) and sources['mp4'].get('low'):
-        path = sources['mp4']['low']
-    if (not path or video_quality >= 0) and sources['mp4'].get('low-wide'):
-        path = sources['mp4']['low-wide']
+    sources_mp4 = sources.get('mp4')
 
-    if (not path or video_quality >= 1) and sources['mp4'].get('medium'):
-        path = sources['mp4']['medium']
-    if (not path or video_quality >= 1) and sources['mp4'].get('medium-wide'):
-        path = sources['mp4']['medium-wide']
+    if sources_mp4 is None:
+        return path
 
-    if (not path or video_quality >= 2) and sources['mp4'].get('high-wide'):
-        path = sources['mp4']['high-wide']
-    if (not path or video_quality >= 2) and sources['mp4'].get('high'):
-        path = sources['mp4']['high']
+    if (not path or video_quality >= 0) and sources_mp4.get('low'):
+        path = sources_mp4['low']
+    if (not path or video_quality >= 0) and sources_mp4.get('low-wide'):
+        path = sources_mp4['low-wide']
 
-    if (not path or video_quality >= 3) and sources['mp4'].get('hd'):
-        path = sources['mp4']['hd']
-    if (not path or video_quality >= 3) and sources['mp4'].get('hd-wide'):
-        path = sources['mp4']['hd-wide']
+    if (not path or video_quality >= 1) and sources_mp4.get('medium'):
+        path = sources_mp4['medium']
+    if (not path or video_quality >= 1) and sources_mp4.get('medium-wide'):
+        path = sources_mp4['medium-wide']
 
-    if (not path or video_quality >= 4) and sources['mp4'].get('fhd'):
-        path = sources['mp4']['fhd']
-    if (not path or video_quality >= 4) and sources['mp4'].get('fhd-wide'):
-        path = sources['mp4']['fhd-wide']
+    if (not path or video_quality >= 2) and sources_mp4.get('high-wide'):
+        path = sources_mp4['high-wide']
+    if (not path or video_quality >= 2) and sources_mp4.get('high'):
+        path = sources_mp4['high']
+
+    if (not path or video_quality >= 3) and sources_mp4.get('hd'):
+        path = sources_mp4['hd']
+    if (not path or video_quality >= 3) and sources_mp4.get('hd-wide'):
+        path = sources_mp4['hd-wide']
+
+    if (not path or video_quality >= 4) and sources_mp4.get('fhd'):
+        path = sources_mp4['fhd']
+    if (not path or video_quality >= 4) and sources_mp4.get('fhd-wide'):
+        path = sources_mp4['fhd-wide']
 
     return path
 
